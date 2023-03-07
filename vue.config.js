@@ -6,6 +6,31 @@ function resolve(dir) {
   return path.join(__dirname, dir)
 }
 
+let cdn = { css: [], js: [] }
+// 通过环境变量 来区分是否使用cdn
+const isProd = process.env.NODE_ENV === 'production' // 判断是否是生产环境
+let externals = {}
+if (isProd) {
+  // 如果是生产环境 就排除打包 否则不排除
+  externals = {
+    // key(包名) / value(这个值 是 需要在CDN中获取js, 相当于 获取的js中 的该包的全局的对象的名字)
+    'vue': 'Vue', // 后面的名字不能随便起 应该是 js中的全局对象名
+    'element-ui': 'ELEMENT', // 都是js中全局定义的
+    'xlsx': 'XLSX' // 都是js中全局定义的
+  }
+  cdn = {
+    css: [
+      'https://unpkg.com/element-ui/lib/theme-chalk/index.css' // 提前引入elementUI样式
+    ], // 放置css文件目录
+    js: [
+      'https://unpkg.com/vue@2.7.10/dist/vue.min.js', // vuejs
+      'https://unpkg.com/element-ui/lib/index.js', // element
+      'https://cdn.jsdelivr.net/npm/xlsx@0.16.6/dist/xlsx.full.min.js', // xlsx 相关
+      'https://cdn.jsdelivr.net/npm/xlsx@0.16.6/dist/jszip.min.js' // xlsx 相关
+    ] // 放置js文件目录
+  }
+}
+
 const name = defaultSettings.title || 'vue Admin Template' // page title
 
 // If your port is set to 80,
@@ -51,7 +76,9 @@ module.exports = {
       alias: {
         '@': resolve('src')
       }
-    }
+    },
+    // 排除 elementUI xlsx  和 vue 需要和CDN上的变量对应
+    externals: externals
   },
   chainWebpack(config) {
     // it can improve the speed of the first screen, it is recommended to turn on preload
@@ -62,7 +89,12 @@ module.exports = {
         // https://github.com/vuejs/vue-cli/blob/dev/packages/@vue/cli-service/lib/config/app.js#L171
         fileBlacklist: [/\.map$/, /hot-update\.js$/, /runtime\..*\.js$/],
         include: 'initial'
-      }
+      },
+      // 通过 `html-webpack-plugin`注入到 `index.html`之中
+      config.plugin('html').tap(args => {
+        args[0].cdn = cdn
+        return args
+      })
     ])
 
     // when there are many pages, it will cause too many meaningless requests
